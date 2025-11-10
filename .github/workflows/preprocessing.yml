@@ -1,0 +1,114 @@
+name: Automated Data Preprocessing
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'preprocessing/**'
+      - 'data/**'
+      - '.github/workflows/preprocessing.yml'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  preprocess:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12.7'
+        
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy scikit-learn joblib
+        
+    - name: Create data directories
+      run: |
+        mkdir -p data/preprocessed
+        
+    - name: Run preprocessing script
+      run: |
+        cd preprocessing
+        python automate_Muhammad_Rivaldy_Pratama.py
+        
+    - name: Verify preprocessed data
+      run: |
+        echo "Checking preprocessed data..."
+        ls -lh data/preprocessed/
+        if [ -f "data/preprocessed/train_data.csv" ] && [ -f "data/preprocessed/test_data.csv" ]; then
+          echo "✅ Preprocessed data files created successfully!"
+          wc -l data/preprocessed/*.csv
+        else
+          echo "❌ Preprocessed data files not found!"
+          exit 1
+        fi
+        
+    - name: Generate preprocessing report
+      run: |
+        echo "# Preprocessing Report" > preprocessing_report.md
+        echo "Generated on: $(date)" >> preprocessing_report.md
+        echo "" >> preprocessing_report.md
+        echo "## Files Created" >> preprocessing_report.md
+        ls -lh data/preprocessed/ >> preprocessing_report.md
+        echo "" >> preprocessing_report.md
+        echo "## Dataset Statistics" >> preprocessing_report.md
+        python -c "
+        import pandas as pd
+        train = pd.read_csv('data/preprocessed/train_data.csv')
+        test = pd.read_csv('data/preprocessed/test_data.csv')
+        print(f'Training samples: {len(train)}')
+        print(f'Testing samples: {len(test)}')
+        print(f'Total samples: {len(train) + len(test)}')
+        print(f'Number of features: {train.shape[1] - 1}')
+        " >> preprocessing_report.md
+        cat preprocessing_report.md
+        
+    - name: Upload preprocessed data as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: preprocessed-data-${{ github.sha }}
+        path: |
+          data/preprocessed/
+          preprocessing_report.md
+        retention-days: 30
+        
+    - name: Commit and push preprocessed data
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add data/preprocessed/*.csv data/preprocessed/*.pkl preprocessing_report.md
+        git diff --staged --quiet || git commit -m "🤖 Auto: Update preprocessed data [skip ci]"
+        git push
+      continue-on-error: true
+      
+    - name: Create preprocessing summary
+      if: always()
+      run: |
+        echo "## 📊 Preprocessing Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Status:** ✅ Completed Successfully" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Files Generated:" >> $GITHUB_STEP_SUMMARY
+        echo "- \`train_data.csv\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`test_data.csv\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`scaler.pkl\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Workflow Info:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
