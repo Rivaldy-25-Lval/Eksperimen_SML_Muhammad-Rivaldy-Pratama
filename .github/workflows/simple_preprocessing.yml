@@ -1,0 +1,47 @@
+name: Preprocessing - Simple & Working
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  preprocess:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install pandas numpy scikit-learn joblib
+        
+    - name: Run preprocessing
+      run: |
+        cd preprocessing
+        python automate_Muhammad_Rivaldy_Pratama.py
+        
+    - name: List output files
+      run: |
+        echo "=== Checking output ==="
+        find . -name "*.csv" -type f
+        find . -name "*.pkl" -type f
+        
+    - name: Create success marker
+      run: |
+        echo "Preprocessing completed at $(date)" > preprocessing_success.txt
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: preprocessed-data
+        path: |
+          preprocessing/data/preprocessed/
+          preprocessing_success.txt
+        retention-days: 30
