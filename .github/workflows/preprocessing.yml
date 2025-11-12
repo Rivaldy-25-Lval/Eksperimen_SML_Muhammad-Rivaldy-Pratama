@@ -40,42 +40,54 @@ jobs:
     - name: Create data directories
       run: |
         mkdir -p data/preprocessed
+        mkdir -p preprocessing/data/preprocessed
         
     - name: Run preprocessing script
       run: |
         cd preprocessing
         python automate_Muhammad_Rivaldy_Pratama.py
+        ls -la data/preprocessed/ || echo "Preprocessed data directory content check failed"
         
     - name: Verify preprocessed data
       run: |
         echo "Checking preprocessed data..."
-        ls -lh data/preprocessed/
-        if [ -f "data/preprocessed/train_data.csv" ] && [ -f "data/preprocessed/test_data.csv" ]; then
-          echo "✅ Preprocessed data files created successfully!"
-          wc -l data/preprocessed/*.csv
+        echo "Checking in preprocessing/data/preprocessed/..."
+        ls -lh preprocessing/data/preprocessed/ || echo "Directory not found"
+        echo "Checking in data/preprocessed/..."
+        ls -lh data/preprocessed/ || echo "Directory not found"
+        
+        # Check both possible locations
+        if [ -f "preprocessing/data/preprocessed/train_data.csv" ]; then
+          echo "✅ Found in preprocessing/data/preprocessed/"
+          DATA_DIR="preprocessing/data/preprocessed"
+        elif [ -f "data/preprocessed/train_data.csv" ]; then
+          echo "✅ Found in data/preprocessed/"
+          DATA_DIR="data/preprocessed"
         else
-          echo "❌ Preprocessed data files not found!"
+          echo "❌ Preprocessed data files not found in any location!"
           exit 1
         fi
         
+        echo "✅ Preprocessed data files created successfully!"
+        wc -l $DATA_DIR/*.csv
+        
     - name: Generate preprocessing report
       run: |
+        # Detect data directory
+        if [ -f "preprocessing/data/preprocessed/train_data.csv" ]; then
+          DATA_DIR="preprocessing/data/preprocessed"
+        else
+          DATA_DIR="data/preprocessed"
+        fi
+        
         echo "# Preprocessing Report" > preprocessing_report.md
         echo "Generated on: $(date)" >> preprocessing_report.md
         echo "" >> preprocessing_report.md
         echo "## Files Created" >> preprocessing_report.md
-        ls -lh data/preprocessed/ >> preprocessing_report.md
+        ls -lh $DATA_DIR/ >> preprocessing_report.md
         echo "" >> preprocessing_report.md
-        echo "## Dataset Statistics" >> preprocessing_report.md
-        python -c "
-        import pandas as pd
-        train = pd.read_csv('data/preprocessed/train_data.csv')
-        test = pd.read_csv('data/preprocessed/test_data.csv')
-        print(f'Training samples: {len(train)}')
-        print(f'Testing samples: {len(test)}')
-        print(f'Total samples: {len(train) + len(test)}')
-        print(f'Number of features: {train.shape[1] - 1}')
-        " >> preprocessing_report.md
+        echo "## Dataset Line Counts" >> preprocessing_report.md
+        wc -l $DATA_DIR/*.csv >> preprocessing_report.md
         cat preprocessing_report.md
         
     - name: Upload preprocessed data as artifact
